@@ -1,5 +1,6 @@
-import { addDays, diffDays, localDayKey, msToKey } from '../lib/calendar';
+import { addDays, diffDays, fmtDayLong, localDayKey, msToKey } from '../lib/calendar';
 import { seededRng } from '../lib/market';
+import { sampleNews } from '../lib/news';
 import { local, readJson, writeJson } from '../lib/storage';
 import { getToken } from './api';
 import { BackendError, type Backend } from './backend';
@@ -13,6 +14,7 @@ import {
   type DiscountCode,
   type GatewayConfig,
   type GatewayId,
+  type NewsSyncStatus,
   type Payment,
   type Plan,
   type SiteSettings,
@@ -254,6 +256,7 @@ function seed(): Db {
     payments,
     discounts: [
       { id: 'dc1', code: 'NOROOZ1405', percent: 30, maxUses: 500, used: 137, expiresAt: '2026-04-15', active: true },
+      { id: 'dc4', code: 'PAEEZ1405', percent: 20, maxUses: 300, used: 46, expiresAt: addDays(localDayKey(), 45), active: true },
       { id: 'dc2', code: 'WELCOME15', percent: 15, maxUses: 10_000, used: 412, active: true },
       { id: 'dc3', code: 'VIP50', percent: 50, maxUses: 20, used: 20, expiresAt: '2025-12-31', active: false },
     ],
@@ -588,7 +591,7 @@ export const localBackend: Backend = {
       const before = { ...u };
       Object.assign(u, patch);
       if (patch.status && patch.status !== before.status) log(patch.status === 'banned' ? 'مسدود کردن کاربر' : 'رفع مسدودی کاربر', u.name);
-      else if (patch.planEndsAt && patch.planEndsAt !== before.planEndsAt) log('تغییر اشتراک', `${u.name}: تا ${patch.planEndsAt}`);
+      else if (patch.planEndsAt && patch.planEndsAt !== before.planEndsAt) log('تغییر اشتراک', `${u.name}: تا ${fmtDayLong(patch.planEndsAt)}`);
       else if (patch.role && patch.role !== before.role) log(patch.role === 'admin' ? 'دادن دسترسی مدیر' : 'گرفتن دسترسی مدیر', u.name);
       else log('ویرایش کاربر', u.name);
       save();
@@ -768,17 +771,30 @@ export const localBackend: Backend = {
     },
     async newsStatus() {
       requireAdmin();
-      return { source: 'sample', lastSyncAt: db().newsSyncedAt, events: 0, weeks: 0, lastError: 'در حالت نمایشی سروری برای دریافت از ForexFactory نیست؛ تقویم نمونه استفاده می‌شود.' };
+      return sampleNewsStatus(db().newsSyncedAt);
     },
     async syncNews() {
       requireAdmin();
       db().newsSyncedAt = Date.now();
       log('همگام‌سازی تقویم اقتصادی', 'نمونه');
       save();
-      return delay({ source: 'sample' as const, lastSyncAt: Date.now(), events: 0, weeks: 0, lastError: 'در حالت نمایشی سروری برای دریافت از ForexFactory نیست؛ تقویم نمونه استفاده می‌شود.' }, 800);
+      return delay(sampleNewsStatus(db().newsSyncedAt), 800);
     },
   },
 };
+
+/** The demo has no server, so it reports the built-in calendar from 2019 to next week. */
+function sampleNewsStatus(lastSyncAt?: number): NewsSyncStatus {
+  const from = Date.UTC(2019, 0, 1);
+  const to = Date.now() + 7 * 86_400_000;
+  return {
+    source: 'sample',
+    lastSyncAt,
+    events: sampleNews(from, to).length,
+    weeks: Math.round((to - from) / (7 * 86_400_000)),
+    lastError: 'در حالت نمایشی سروری برای دریافت از ForexFactory نیست؛ تقویم نمونه (بر اساس زمان‌بندی واقعی انتشار خبرها) استفاده می‌شود.',
+  };
+}
 
 /** Days left on a user's plan (0 when expired). */
 export const planDaysLeftOf = (u: Pick<AccountUser, 'planEndsAt'>) => Math.max(0, diffDays(localDayKey(), u.planEndsAt));
