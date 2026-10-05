@@ -1,12 +1,13 @@
 import clsx from 'clsx';
 import { ArrowRight, CircleAlert, LoaderCircle, MessageSquareText, Moon, Pencil, Phone, ShieldCheck, Sun, TrendingUp, User } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from 'react';
-import { Link, Navigate, useLocation } from 'react-router-dom';
+import { Navigate, useLocation } from 'react-router-dom';
+import { Link } from '../components/ui/AppLink';
 import { ReplayDemo } from '../components/landing/ReplayDemo';
 import { Logo } from '../components/layout/Layout';
 import { fmtPhone, nameError, phoneError } from '../lib/auth';
 import { faDigits, toLatinDigits } from '../lib/format';
-import { getCandles } from '../lib/market';
+import { getCandles, synthetic } from '../lib/market';
 import { BackendError, backend, type OtpRequest } from '../services';
 import { useAuth } from '../store/useAuth';
 import { toast, useStore } from '../store/useStore';
@@ -91,7 +92,7 @@ function MarketPanel() {
   const quotes = useMemo(() => {
     const at = Date.UTC(2023, 4, 3, 22);
     return TICKERS.map((s) => {
-      const c = getCandles(s, '1D', at, 2);
+      const c = synthetic(() => getCandles(s, '1D', at, 2));
       const chg = c.length === 2 ? ((c[1].close - c[0].close) / c[0].close) * 100 : 0;
       return { s, chg };
     });
